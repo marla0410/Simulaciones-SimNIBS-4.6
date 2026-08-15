@@ -1,0 +1,224 @@
+import numpy as np
+import simnibs
+
+############################################################
+# Cargar la simulación
+############################################################
+
+# Sustituye esta ruta por el archivo .msh de cada sujeto
+head_mesh = simnibs.read_msh(
+    r"C:\SimNIBS\TMS\simulaciones\pilot_TMS_1-0001_MagVenture_Cool-D-B80_scalar.msh"
+)
+
+############################################################
+# Extraer únicamente la sustancia gris
+############################################################
+
+gray_matter = head_mesh.crop_mesh(simnibs.ElementTags.GM)
+
+############################################################
+# Coordenadas MNI del cíngulo anterior
+############################################################
+
+mni_coords = [-5, 14, 42]
+
+############################################################
+# Convertir coordenadas MNI al espacio del sujeto
+############################################################
+
+# Sustituye esta ruta por la carpeta m2m del sujeto correspondiente
+subject_coords = simnibs.mni2subject_coords(
+    mni_coords,
+    r"C:\SimNIBS\scans\m2m_pilot"
+)
+
+############################################################
+# Definir una ROI esférica de 10 mm
+############################################################
+
+radius = 10.0  # mm
+
+# Centros de los elementos de la sustancia gris
+elm_centers = gray_matter.elements_baricenters()[:]
+
+# Distancia de cada elemento al centro de la ROI
+distances = np.linalg.norm(
+    elm_centers - subject_coords,
+    axis=1
+)
+
+# Elementos dentro de la ROI
+roi = distances < radius
+
+# Volúmenes de cada elemento
+elm_volumes = gray_matter.elements_volumes_and_areas()[:]
+
+############################################################
+# Visualizar la ROI
+############################################################
+
+gray_matter.add_element_field(
+    roi.astype(int),
+    "ROI"
+)
+
+gray_matter.view(
+    visible_fields="ROI"
+).show()
+
+############################################################
+# PARÁMETROS DEL ESTIMULADOR (ESCALADO FISIOLÓGICO)
+############################################################
+
+# 1. Porcentaje de salida del estimulador (% MSO)
+mso_percent = 50.0 
+
+# 2. Tasa máxima de cambio de corriente (A/us al 100% MSO)
+max_di_dt = 150.0 
+
+# 3. Cálculo de la tasa de cambio de corriente inyectada real
+di_dt_real = max_di_dt * (mso_percent / 100.0)
+
+############################################################
+# Obtener y escalar la magnitud del campo eléctrico
+############################################################
+
+field_name = "magnE"
+
+# Extracción de la matriz normalizada y multiplicación escalar
+field = gray_matter.field[field_name][:] * di_dt_real
+
+############################################################
+# Extraer los valores del campo correspondientes a la ROI
+############################################################
+
+roi_field = field[roi]
+roi_volumes = elm_volumes[roi]
+
+############################################################
+# Estadísticas del campo eléctrico
+############################################################
+
+# Campo eléctrico medio ponderado por volumen
+mean_field = np.average(
+    roi_field,
+    weights=roi_volumes
+)
+
+# Campo eléctrico máximo
+max_field = np.max(roi_field)
+
+# Campo eléctrico mínimo
+min_field = np.min(roi_field)
+
+# Desviación estándar
+std_field = np.std(roi_field)
+
+# Percentil 99.5 (medida robusta del extremo superior)
+field_99_5 = np.percentile(
+    roi_field,
+    99.5
+)
+
+############################################################
+# UMBRAL DE CAMPO ELÉCTRICO
+############################################################
+
+threshold = 80.0  # V/m
+
+############################################################
+# Identificar elementos que alcanzan E >= 80 V/m
+############################################################
+
+suprathreshold = roi_field >= threshold
+
+############################################################
+# CALCULAR VOLUMEN CON E >= 80 V/m
+############################################################
+
+volume_above_threshold = np.sum(
+    roi_volumes[suprathreshold]
+)
+
+############################################################
+# VOLUMEN TOTAL DE LA ROI
+############################################################
+
+total_roi_volume = np.sum(
+    roi_volumes
+)
+
+############################################################
+# PORCENTAJE DEL VOLUMEN DE LA ROI CON E >= 80 V/m
+############################################################
+
+percentage_volume = (
+    volume_above_threshold /
+    total_roi_volume
+) * 100
+
+############################################################
+# Porcentaje de elementos que superan el umbral
+############################################################
+
+percentage_elements = (
+    np.sum(suprathreshold) /
+    len(roi_field)
+) * 100
+
+############################################################
+# Número de elementos
+############################################################
+
+n_roi_elements = len(roi_field)
+n_suprathreshold = np.sum(suprathreshold)
+
+############################################################
+# RESULTADOS
+############################################################
+
+print("\n==============================================")
+print("       ANÁLISIS DEL CÍNGULO ANTERIOR")
+print("==============================================")
+
+print(f"Coordenadas MNI:              {mni_coords}")
+print(f"Coordenadas sujeto:           {subject_coords}")
+print(f"Radio de la ROI:              {radius} mm")
+
+print("----------------------------------------------")
+print("CAMPO ELÉCTRICO")
+print("----------------------------------------------")
+
+print(f"Campo medio ponderado:        {mean_field:.4f} V/m")
+print(f"Campo máximo:                 {max_field:.4f} V/m")
+print(f"Percentil 99.5:               {field_99_5:.4f} V/m")
+print(f"Campo mínimo:                 {min_field:.4f} V/m")
+print(f"Desviación estándar:          {std_field:.4f} V/m")
+
+print("----------------------------------------------")
+print("UMBRAL DE ALCANCE")
+print("----------------------------------------------")
+
+print(f"Umbral utilizado:             E >= {threshold:.1f} V/m")
+print(f"Elementos en la ROI:          {n_roi_elements}")
+print(f"Elementos E >= 80 V/m:        {n_suprathreshold}")
+
+print("----------------------------------------------")
+print("ALCANCE VOLUMÉTRICO")
+print("----------------------------------------------")
+
+print(f"Volumen total ROI:            {total_roi_volume:.2f} mm³")
+print(f"Volumen E >= 80 V/m:          {volume_above_threshold:.2f} mm³")
+print(f"% volumen E >= 80 V/m:        {percentage_volume:.2f} %")
+
+print("----------------------------------------------")
+print("DATO COMPLEMENTARIO")
+print("----------------------------------------------")
+
+print(f"% elementos E >= 80 V/m:      {percentage_elements:.2f} %")
+
+print("==============================================")
+
+
+
+
