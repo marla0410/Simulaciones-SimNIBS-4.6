@@ -1,0 +1,114 @@
+import numpy as np
+import simnibs
+
+############################################################
+# Cargar la simulación
+############################################################
+
+head_mesh = simnibs.read_msh(
+    r"C:\SimNIBS\scans\simnibs_simulation\pilot_TMS_1-0001_MagVenture_Cool-D-B80_scalar.msh"
+)
+
+############################################################
+# Extraer únicamente la sustancia gris
+############################################################
+
+gray_matter = head_mesh.crop_mesh(simnibs.ElementTags.GM)
+
+############################################################
+# Coordenadas MNI del cingulo izquierdo
+############################################################
+
+mni_coords = [-5, 14, 42]
+
+############################################################
+# Convertir coordenadas MNI al espacio del sujeto
+############################################################
+
+subject_coords = simnibs.mni2subject_coords(
+    mni_coords,
+    r"C:\SimNIBS\scans\m2m_pilot"
+)
+
+############################################################
+# Definir una ROI esférica de 10 mm
+############################################################
+
+radius = 10.0  # mm
+
+# Centros de los elementos de la sustancia gris
+elm_centers = gray_matter.elements_baricenters()[:]
+
+# Elementos dentro de la ROI
+roi = np.linalg.norm(
+    elm_centers - subject_coords,
+    axis=1
+) < radius
+
+# Volúmenes de cada elemento
+elm_volumes = gray_matter.elements_volumes_and_areas()[:]
+
+############################################################
+# Visualizar la ROI
+############################################################
+
+gray_matter.add_element_field(
+    roi.astype(int),
+    "ROI"
+)
+
+gray_matter.view(
+    visible_fields="ROI"
+).show()
+
+############################################################
+# Obtener el campo eléctrico
+############################################################
+
+field_name = "magnE"
+field = gray_matter.field[field_name][:]
+
+############################################################
+# Calcular estadísticas
+############################################################
+
+mean_field = np.average(
+    field[roi],
+    weights=elm_volumes[roi]
+)
+
+max_field = np.max(field[roi])
+
+min_field = np.min(field[roi])
+
+std_field = np.std(field[roi])
+
+############################################################
+# Porcentaje de la ROI con E > 0.2 V/m
+############################################################
+
+threshold = 0.2
+
+percentage = (
+    np.sum(field[roi] >= threshold)
+    / np.sum(roi)
+) * 100
+
+############################################################
+# Imprimir resultados
+  #Artículo donde obtuve la coordenada ACC dorsal
+#https://www.researchgate.net/figure/MNI-coordinates-of-the-five-ACC-sub-regions_fig1_298797902
+############################################################
+
+print("\n======================================")
+print("      ANÁLISIS DEL CINGULO IZQUIERDO")
+print("======================================")
+print(f"Coordenadas MNI: {mni_coords}")
+print(f"Radio de la ROI: {radius} mm")
+print("--------------------------------------")
+print(f"Campo medio (V/m):      {mean_field:.4f}")
+print(f"Campo máximo (V/m):     {max_field:.4f}")
+print(f"Campo mínimo (V/m):     {min_field:.4f}")
+print(f"Desviación estándar:    {std_field:.4f}")
+print(f"ROI con E > {threshold} V/m: {percentage:.2f}%")
+print("======================================")
