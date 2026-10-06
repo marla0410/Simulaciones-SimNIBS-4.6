@@ -1,42 +1,24 @@
 import numpy as np
 import simnibs
 
-############################################################
-# Cargar la simulación
-############################################################
-
-# Sustituye esta ruta por el archivo .msh de cada sujeto
+# Insertar ruta del archivo .msh de cada sujeto
 head_mesh = simnibs.read_msh(
     r"C:\SimNIBS\TMS\simulaciones\pilot_TMS_1-0001_MagVenture_Cool-D-B80_scalar.msh"
 )
-
-############################################################
-# Extraer únicamente la sustancia gris
-############################################################
-
+# Se extrae únicamente la sustancia gris
 gray_matter = head_mesh.crop_mesh(simnibs.ElementTags.GM)
 
-############################################################
-# Coordenadas MNI del cíngulo anterior
-############################################################
+# Insertar coordenadas MNI del área a analizar
+mni_coords = [X, Y, Z]
 
-mni_coords = [-5, 14, 42]
-
-############################################################
-# Convertir coordenadas MNI al espacio del sujeto
-############################################################
-
-# Sustituye esta ruta por la carpeta m2m del sujeto correspondiente
+# Se convierten las coordenadas MNI al espacio del sujeto
+# Sustituir aquí esta ruta por la carpeta m2m del sujeto 
 subject_coords = simnibs.mni2subject_coords(
     mni_coords,
     r"C:\SimNIBS\scans\m2m_pilot"
 )
-
-############################################################
-# Definir una ROI esférica de 10 mm
-############################################################
-
-radius = 10.0  # mm
+# Definir una ROI esférica de x mm
+radius = x.0  # m
 
 # Centros de los elementos de la sustancia gris
 elm_centers = gray_matter.elements_baricenters()[:]
@@ -46,59 +28,44 @@ distances = np.linalg.norm(
     elm_centers - subject_coords,
     axis=1
 )
-
 # Elementos dentro de la ROI
 roi = distances < radius
 
 # Volúmenes de cada elemento
 elm_volumes = gray_matter.elements_volumes_and_areas()[:]
 
-############################################################
-# Visualizar la ROI
-############################################################
+# Aquí se genera un esquema visual de la ROI
 
 gray_matter.add_element_field(
     roi.astype(int),
     "ROI"
 )
-
 gray_matter.view(
     visible_fields="ROI"
 ).show()
 
-############################################################
-# PARÁMETROS DEL ESTIMULADOR (ESCALADO FISIOLÓGICO)
-############################################################
-
-# 1. Porcentaje de salida del estimulador (% MSO)
+# Parámetros para simular la estimulación
+# % MSO de salida del estimulador
 mso_percent = 50.0 
 
-# 2. Tasa máxima de cambio de corriente (A/us al 100% MSO)
-max_di_dt = 150.0 
+# Tasa máxima de cambio de corriente (A/us al 100% MSO)
+# Consultar para cada equipo de acuerdo a Drakiti et al. (2022)
+max_di_dt = x.0 
 
-# 3. Cálculo de la tasa de cambio de corriente inyectada real
+# Producto escalar para calcular la tasa de cambio real
 di_dt_real = max_di_dt * (mso_percent / 100.0)
 
-############################################################
 # Obtener y escalar la magnitud del campo eléctrico
-############################################################
-
 field_name = "magnE"
 
 # Extracción de la matriz normalizada y multiplicación escalar
 field = gray_matter.field[field_name][:] * di_dt_real
 
-############################################################
 # Extraer los valores del campo correspondientes a la ROI
-############################################################
-
 roi_field = field[roi]
 roi_volumes = elm_volumes[roi]
 
-############################################################
 # Estadísticas del campo eléctrico
-############################################################
-
 # Campo eléctrico medio ponderado por volumen
 mean_field = np.average(
     roi_field,
@@ -114,43 +81,27 @@ min_field = np.min(roi_field)
 # Desviación estándar
 std_field = np.std(roi_field)
 
-# Percentil 99.5 (medida robusta del extremo superior)
+# Filtrar el percentil 99.5
 field_99_5 = np.percentile(
     roi_field,
     99.5
 )
 
-############################################################
-# UMBRAL DE CAMPO ELÉCTRICO
-############################################################
-
+# Fijar el umbral del campo E
 threshold = 80.0  # V/m
 
-############################################################
-# Identificar elementos que alcanzan E >= 80 V/m
-############################################################
-
+# Identificar elementos y volumen que alcanzan E >= 80 V/m
 suprathreshold = roi_field >= threshold
-
-############################################################
-# CALCULAR VOLUMEN CON E >= 80 V/m
-############################################################
-
 volume_above_threshold = np.sum(
     roi_volumes[suprathreshold]
 )
-
-############################################################
-# VOLUMEN TOTAL DE LA ROI
-############################################################
+# Calcular el volumen de la ROI
 
 total_roi_volume = np.sum(
     roi_volumes
 )
 
-############################################################
-# PORCENTAJE DEL VOLUMEN DE LA ROI CON E >= 80 V/m
-############################################################
+# % del volumen de la ROI con E >= 80 V/m
 
 percentage_volume = (
     volume_above_threshold /
@@ -218,7 +169,3 @@ print("----------------------------------------------")
 print(f"% elementos E >= 80 V/m:      {percentage_elements:.2f} %")
 
 print("==============================================")
-
-
-
-
